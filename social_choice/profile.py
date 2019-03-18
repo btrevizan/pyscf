@@ -457,11 +457,9 @@ class Profile():
 
         Score is calculated as the mean of class' probabilities.
         """
-        # List of (instance, probabiliy mean) to be used as rank
-        ranking = list()
-
-        n_classifiers = len(probabilities)   # number of voters
-        n_instances = len(probabilities[0])  # number of mayors
+        n_instances, n_classes = probabilities[0].shape
+        ranking = {c: [] for c in range(n_classes)}
+        n_classifiers = len(probabilities)
 
         # For each instance in every classifier...
         for i in range(n_instances):
@@ -489,16 +487,19 @@ class Profile():
             for c in range(n_classifiers):
                 # Predicted class for instance i
                 if predictions[c][i] == voted_class:
-                    sum_probabilities += probabilities[c][i]
+                    sum_probabilities += probabilities[c][i, voted_class]
 
             # Probability mean
             prob_mean = sum_probabilities / n_votes
 
             # Update ranking
-            ranking.append((i, prob_mean))
+            for c in ranking:
+                ranking[c].append((i, 0))
+
+            ranking[voted_class][i] = (i, prob_mean)
 
         # Order ranking
-        ranking.sort(key=lambda x: x[0])
+        ranking = list(ranking.values())
 
         return ranking
 
@@ -753,7 +754,7 @@ class Profile():
         return cls(set(pairs))
 
     @classmethod
-    def aggr_rank(cls, probabilities, sc_functions, predictions=[]):
+    def aggr_rank(cls, probabilities, sc_functions):
         """Aggregate probabilities and return a ranking.
 
         Keyword arguments:
@@ -762,19 +763,13 @@ class Profile():
                        [voter's 2 instances' probabilities],
                        [voter's 3 instances' probabilities] ... ]
             sc_functions -- a list with the name of social choice functions
-            predictions -- a list of instances' predictions (default []),
-                i.e, [ [voter's 1 instances' predictions],
-                       [voter's 2 instances' predictions],
-                       [voter's 3 instances' predictions] ... ]
         """
-        profile = cls.ballot_box(probabilities)
         rankings = dict()
+        profile = cls.ballot_box(probabilities)
 
         for scf in sc_functions:
 
-            if scf == 'plurality':
-                rank = profile.plurality(probabilities, predictions)
-            elif scf == 'kemeny_young':
+            if scf == 'kemeny_young':
                 rank = profile.kemeny_young()
             else:
                 rank = profile.score(eval('profile.' + scf))
